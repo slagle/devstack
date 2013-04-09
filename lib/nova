@@ -156,19 +156,17 @@ function cleanup_nova() {
         fi
 
         # Logout and delete iscsi sessions
-        sudo iscsiadm --mode node | grep $VOLUME_NAME_PREFIX | cut -d " " -f2 | xargs sudo iscsiadm --mode node --logout || true
-        sudo iscsiadm --mode node | grep $VOLUME_NAME_PREFIX | cut -d " " -f2 | sudo iscsiadm --mode node --op delete || true
+        tgts=$(sudo iscsiadm --mode node | grep $VOLUME_NAME_PREFIX | cut -d ' ' -f2)
+        for target in $tgts; do
+            sudo iscsiadm --mode node -T $target --logout || true
+        done
+        sudo iscsiadm --mode node --op delete || true
 
         # Clean out the instances directory.
         sudo rm -rf $NOVA_INSTANCES_PATH/*
     fi
 
     sudo rm -rf $NOVA_STATE_PATH $NOVA_AUTH_CACHE_DIR
-}
-
-# configure_novaclient() - Set config files, create data dirs, etc
-function configure_novaclient() {
-    setup_develop $NOVACLIENT_DIR
 }
 
 # configure_nova_rootwrap() - configure Nova's rootwrap
@@ -201,8 +199,6 @@ function configure_nova_rootwrap() {
 
 # configure_nova() - Set config files, create data dirs, etc
 function configure_nova() {
-    setup_develop $NOVA_DIR
-
     # Put config files in ``/etc/nova`` for everyone to find
     if [[ ! -d $NOVA_CONF_DIR ]]; then
         sudo mkdir -p $NOVA_CONF_DIR
@@ -594,6 +590,7 @@ function init_nova() {
 # install_novaclient() - Collect source and prepare
 function install_novaclient() {
     git_clone $NOVACLIENT_REPO $NOVACLIENT_DIR $NOVACLIENT_BRANCH
+    setup_develop $NOVACLIENT_DIR
 }
 
 # install_nova() - Collect source and prepare
@@ -624,6 +621,7 @@ function install_nova() {
     fi
 
     git_clone $NOVA_REPO $NOVA_DIR $NOVA_BRANCH
+    setup_develop $NOVA_DIR
 }
 
 # start_nova_api() - Start the API process ahead of other things
@@ -660,6 +658,11 @@ function start_nova() {
     screen_it n-xvnc "cd $NOVA_DIR && $NOVA_BIN_DIR/nova-xvpvncproxy --config-file $NOVA_CONF"
     screen_it n-spice "cd $NOVA_DIR && $NOVA_BIN_DIR/nova-spicehtml5proxy --config-file $NOVA_CONF --web $SPICE_DIR"
     screen_it n-cauth "cd $NOVA_DIR && $NOVA_BIN_DIR/nova-consoleauth"
+
+    # Starting the nova-objectstore only if swift3 service is not enabled.
+    # Swift will act as s3 objectstore.
+    is_service_enabled swift3 || \
+        screen_it n-obj "cd $NOVA_DIR && $NOVA_BIN_DIR/nova-objectstore"
 }
 
 # stop_nova() - Stop running processes (non-screen)
@@ -672,3 +675,7 @@ function stop_nova() {
 
 # Restore xtrace
 $XTRACE
+
+# Local variables:
+# mode: shell-script
+# End:

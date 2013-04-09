@@ -408,6 +408,9 @@ function GetDistro() {
         else
             DISTRO="sle${os_RELEASE}sp${os_UPDATE}"
         fi
+    elif [[ "$os_VENDOR" =~ (Red Hat) || "$os_VENDOR" =~ (CentOS) ]]; then
+        # Drop the . release as we assume it's compatible
+        DISTRO="rhel${os_RELEASE::1}"
     else
         # Catch-all for now is Vendor + Release + Update
         DISTRO="$os_VENDOR-$os_RELEASE.$os_UPDATE"
@@ -439,7 +442,6 @@ function is_fedora {
 
     [ "$os_VENDOR" = "Fedora" ] || [ "$os_VENDOR" = "Red Hat" ] || [ "$os_VENDOR" = "CentOS" ]
 }
-
 
 # Determine if current distribution is a SUSE-based distribution
 # (openSUSE, SLE).
@@ -781,9 +783,9 @@ function uninstall_package() {
     if is_ubuntu; then
         apt_get purge "$@"
     elif is_fedora; then
-        yum remove -y "$@"
+        sudo yum remove -y "$@"
     elif is_suse; then
-        rpm -e "$@"
+        sudo rpm -e "$@"
     else
         exit_distro_not_supported "uninstalling packages"
     fi
@@ -1148,6 +1150,12 @@ function upload_image() {
             DISK_FORMAT=qcow2
             CONTAINER_FORMAT=bare
             ;;
+        *.iso)
+            IMAGE="$FILES/${IMAGE_FNAME}"
+            IMAGE_NAME=$(basename "$IMAGE" ".iso")
+            DISK_FORMAT=iso
+            CONTAINER_FORMAT=bare
+            ;;
         *) echo "Do not know what to do with $IMAGE_FNAME"; false;;
     esac
 
@@ -1350,5 +1358,5 @@ $XTRACE
 
 
 # Local variables:
-# -*- mode: Shell-script -*-
+# mode: shell-script
 # End:
